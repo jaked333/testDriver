@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1e40af" />
+  <title>ทดสอบอัปโหลดรูปงานซ่อมรถ | Supabase Storage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-badge">ทดสอบ Supabase Storage (ฟรี ไม่ต้องผูกบัตร)</div>
+      <h1>ถ่ายและอัปโหลดรูปงานซ่อมรถ</h1>
+      <p class="header-subtitle">
+        ย่อขนาดภาพอัตโนมัติบนเบราว์เซอร์ (สูงสุด 1280px) และจัดเก็บแยกตามโฟลเดอร์งานซ่อม
+      </p>
+    </header>
+
+    <main class="main-content">
+      <!-- แถบแจ้งเตือนเมื่อยังไม่ได้ตั้งค่า Supabase Config -->
+      <section id="configWarningBanner" class="banner banner-warning" role="alert" hidden>
+        <div class="banner-icon" aria-hidden="true">⚠️</div>
+        <div class="banner-body">
+          <h2>ยังไม่ได้ตั้งค่า Supabase Config</h2>
+          <p>
+            กรุณาเปิดไฟล์ <code>supabase-config.js</code> แล้ววางค่า
+            <code>supabaseUrl</code>, <code>supabaseAnonKey</code> และ
+            <code>bucketName</code> จากโปรเจกต์ Supabase ของคุณก่อนใช้งาน
+          </p>
+        </div>
+      </section>
+
+      <!-- แถบแสดงสถานะและข้อผิดพลาด -->
+      <section
+        id="statusBanner"
+        class="banner banner-info"
+        role="status"
+        aria-live="polite"
+        hidden
+      >
+        <div id="statusIcon" class="banner-icon" aria-hidden="true">ℹ️</div>
+        <div class="banner-body">
+          <p id="statusMessage" class="status-text"></p>
+          <p id="statusHint" class="status-hint" hidden></p>
+        </div>
+        <button
+          id="closeStatusBtn"
+          type="button"
+          class="banner-close"
+          aria-label="ปิดข้อความแจ้งเตือน"
+        >
+          ✕
+        </button>
+      </section>
+
+      <!-- การ์ด 1: กรอกข้อมูลงานซ่อม และถ่าย/อัปโหลดรูป -->
+      <section class="card" aria-labelledby="uploadSectionTitle">
+        <div class="card-header">
+          <h2 id="uploadSectionTitle">1. ข้อมูลงานซ่อม &amp; ถ่ายรูป</h2>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="jobIdInput">รหัสงานซ่อม (Job ID)</label>
+            <input
+              id="jobIdInput"
+              type="text"
+              value="JOB-2569-001"
+              placeholder="เช่น JOB-2569-001"
+              autocomplete="off"
+              autocapitalize="characters"
+            />
+            <span id="jobIdHint" class="field-hint" hidden>
+              ชื่อโฟลเดอร์บน Supabase รองรับเฉพาะ A-Z, 0-9, - และ _
+            </span>
+          </div>
+
+          <div class="form-field">
+            <label for="stepSelect">ขั้นตอนการซ่อม (Repair Step)</label>
+            <select id="stepSelect">
+              <option value="00_claim">00_เอกสารเคลม</option>
+              <option value="01_before">01_ก่อนซ่อม</option>
+              <option value="02_bodywork">02_รื้อและเคาะ</option>
+              <option value="03_paint">03_พ่นสี</option>
+              <option value="04_qc">04_ตรวจQC</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="path-box" aria-live="polite">
+          <span class="path-label">โฟลเดอร์ปลายทาง:</span>
+          <code id="activeFolderPath" class="path-value">jobs/JOB-2569-001/00_claim</code>
+        </div>
+
+        <div class="capture-area">
+          <input
+            id="photoInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="sr-only"
+          />
+          <label for="photoInput" id="captureLabel" class="btn btn-capture">
+            <svg
+              class="btn-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            <span class="capture-text-group">
+              <span class="capture-title">ถ่ายรูป / เลือกรูปภาพ</span>
+              <span class="capture-subtitle">เปิดกล้องหลังมือถือหรือเลือกจากคลังภาพ (JPEG 1280px)</span>
+            </span>
+          </label>
+
+          <label class="toggle-row" for="autoUploadToggle">
+            <input id="autoUploadToggle" type="checkbox" checked />
+            <span>อัปโหลดอัตโนมัติทันทีหลังบีบอัดรูป</span>
+          </label>
+        </div>
+
+        <!-- พื้นที่พรีวิวภาพที่บีบอัดแล้ว -->
+        <div id="previewCard" class="preview-card" hidden>
+          <div class="preview-thumb-wrap">
+            <img id="previewImage" alt="ตัวอย่างภาพหลังย่อขนาด" />
+          </div>
+          <div class="preview-details">
+            <p class="preview-filename" id="previewFileName">-</p>
+            <p class="preview-meta" id="previewMeta">-</p>
+            <div class="preview-actions">
+              <button id="uploadNowBtn" type="button" class="btn btn-primary">
+                อัปโหลดรูปภาพ
+              </button>
+              <button id="clearPreviewBtn" type="button" class="btn btn-ghost">
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- แถบความคืบหน้าการอัปโหลด -->
+        <div id="progressContainer" class="progress-box" hidden>
+          <div class="progress-header">
+            <span id="progressLabel">กำลังอัปโหลด...</span>
+            <strong id="progressPercent">0%</strong>
+          </div>
+          <div
+            class="progress-track"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            id="progressTrack"
+          >
+            <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+          </div>
+          <div class="progress-footer">
+            <span id="progressBytes" class="progress-bytes">0 KB / 0 KB</span>
+            <button id="cancelUploadBtn" type="button" class="btn-link-danger">
+              ยกเลิกการอัปโหลด
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- การ์ด 2: แกลเลอรีรูปภาพในโฟลเดอร์ -->
+      <section class="card" aria-labelledby="gallerySectionTitle">
+        <div class="card-header card-header-split">
+          <div>
+            <h2 id="gallerySectionTitle">2. รูปภาพในโฟลเดอร์</h2>
+            <p id="galleryCount" class="gallery-count">กำลังเตรียมข้อมูล...</p>
+          </div>
+          <button id="refreshGalleryBtn" type="button" class="btn btn-secondary">
+            <svg
+              class="btn-icon-sm"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+            <span>โหลดรูปในโฟลเดอร์</span>
+          </button>
+        </div>
+
+        <div id="galleryContainer" class="gallery-grid" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- กล่องยืนยันการลบรูปภาพ -->
+  <dialog id="deleteDialog" class="modal-dialog" aria-labelledby="deleteDialogTitle">
+    <div class="modal-content">
+      <h3 id="deleteDialogTitle">ยืนยันการลบรูปภาพ</h3>
+      <p class="modal-desc">
+        ต้องการลบรูปภาพนี้ออกจาก Supabase Storage ใช่หรือไม่? การลบจะไม่สามารถกู้คืนได้
+      </p>
+      <div class="modal-file-preview">
+        <img id="deletePreviewImg" alt="" />
+        <code id="deleteFileName" class="modal-filename"></code>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelDeleteBtn" type="button" class="btn btn-ghost">
+          ยกเลิก
+        </button>
+        <button id="confirmDeleteBtn" type="button" class="btn btn-danger">
+          ยืนยันลบรูป
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
