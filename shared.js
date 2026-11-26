@@ -131,3 +131,4 @@ export function getSupabaseErrorDetails(error, actionLabel, bucketName) {
     hint: status ? `รหัสสถานะ: ${status}` : "ตรวจสอบการตั้งค่าใน supabase-config.js และ Storage Policies"
   };
 }
+
