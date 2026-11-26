@@ -1,9 +1,13 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { supabaseConfig } from "./supabase-config.js";
+import {
+  createStorageClient,
+  getSupabaseErrorDetails,
+  isPlaceholderConfig,
+  sanitizeJobId
+} from "./shared.js";
 
 const MAX_IMAGE_WIDTH = 1280;
 const JPEG_QUALITY = 0.8;
-const REQUIRED_CONFIG_KEYS = ["supabaseUrl", "supabaseAnonKey", "bucketName"];
 
 // DOM Elements
 const configWarningBanner = document.getElementById("configWarningBanner");
@@ -13,10 +17,13 @@ const statusMessage = document.getElementById("statusMessage");
 const statusHint = document.getElementById("statusHint");
 const closeStatusBtn = document.getElementById("closeStatusBtn");
 
+const headerViewerLink = document.getElementById("headerViewerLink");
 const jobIdInput = document.getElementById("jobIdInput");
 const jobIdHint = document.getElementById("jobIdHint");
 const stepSelect = document.getElementById("stepSelect");
 const activeFolderPath = document.getElementById("activeFolderPath");
+const openCustomerViewLink = document.getElementById("openCustomerViewLink");
+const copyCustomerLinkBtn = document.getElementById("copyCustomerLinkBtn");
 const photoInput = document.getElementById("photoInput");
 const captureLabel = document.getElementById("captureLabel");
 const autoUploadToggle = document.getElementById("autoUploadToggle");
@@ -56,41 +63,6 @@ let activeUploadProgress = null;
 let galleryRequestSeq = 0;
 let jobIdDebounceTimer = null;
 let pendingDeleteItem = null;
-
-/**
- * ตรวจสอบว่า supabaseConfig ยังเป็นค่าตัวอย่าง (placeholder) อยู่หรือไม่
- */
-function isPlaceholderConfig(config) {
-  if (!config || typeof config !== "object") {
-    return true;
-  }
-  const hasInvalidField = REQUIRED_CONFIG_KEYS.some((key) => {
-    const value = config[key];
-    if (typeof value !== "string") {
-      return true;
-    }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return true;
-    }
-    const upper = trimmed.toUpperCase();
-    return (
-      upper.includes("YOUR_") ||
-      upper.includes("REPLACE_") ||
-      upper.includes("PASTE_") ||
-      upper.includes("PLACEHOLDER") ||
-      trimmed.includes("<") ||
-      trimmed.includes(">")
-    );
-  });
-
-  if (hasInvalidField) {
-    return true;
-  }
-
-  const url = config.supabaseUrl.trim();
-  return !url.startsWith("https://") && !url.startsWith("http://");
-}
 
 function parseXhrHeaders(rawHeaders) {
   const headers = new Headers();
@@ -221,23 +193,6 @@ function uploadProgressFetch(input, init = {}) {
   });
 }
 
-/**
- * ทำความสะอาด Job ID ให้รองรับกฎชื่อ key ของ Supabase Storage (เฉพาะ ASCII)
- */
-function sanitizeJobId(rawValue) {
-  const trimmed = rawValue.trim();
-  const hadUnsupportedChars =
-    trimmed.length > 0 && /[^A-Za-z0-9._\-\s/\\]/.test(trimmed);
-
-  const cleaned = trimmed
-    .replace(/[\s/\\]+/g, "-")
-    .replace(/[^A-Za-z0-9._-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^[-.]+|[-.]+$/g, "");
-
-  return { cleaned, hadUnsupportedChars };
-}
-
 function getSelectedJobId() {
   const { cleaned, hadUnsupportedChars } = sanitizeJobId(jobIdInput.value);
   jobIdHint.hidden = !hadUnsupportedChars;
@@ -255,11 +210,20 @@ function getFolderPath(jobId, stepSlug) {
   return `jobs/${jobId}/${stepSlug}`;
 }
 
+function getCustomerViewUrl(jobId) {
+  const target = jobId ? `./view.html?job=${encodeURIComponent(jobId)}` : "./view.html";
+  return new URL(target, window.location.href).href;
+}
+
 function updateActivePathDisplay() {
   const jobId = getSelectedJobId();
   const stepSlug = getSelectedStep();
   const folderPath = getFolderPath(jobId, stepSlug);
   activeFolderPath.textContent = folderPath || "กรุณาระบุ Job ID (A-Z, 0-9, -, _)";
+
+  const viewerHref = jobId ? `./view.html?job=${encodeURIComponent(jobId)}` : "./view.html";
+  openCustomerViewLink.href = viewerHref;
+  headerViewerLink.href = viewerHref;
 }
 
 function formatBytes(bytes) {
@@ -322,68 +286,6 @@ function showStatus(type, message, hint = "") {
 
 function hideStatus() {
   statusBanner.hidden = true;
-}
-
-/**
- * แปลง Supabase Storage Error เป็นข้อความภาษาไทยที่เข้าใจง่าย
- */
-function getSupabaseErrorDetails(error, actionLabel) {
-  const rawMsg = error?.message || "";
-  const msg = rawMsg.toLowerCase();
-  const status = String(error?.statusCode || error?.status || "");
-
-  if (error?.name === "AbortError" || msg.includes("aborted")) {
-    return {
-      message: "ยกเลิกการอัปโหลดเรียบร้อยแล้ว",
-      hint: ""
-    };
-  }
-
-  if (rawMsg === "RLS_DELETE_DENIED") {
-    return {
-      message: "ไม่สามารถลบรูปภาพได้ (ติดสิทธิ์ RLS Policy ของ Supabase Storage)",
-      hint: `คำแนะนำ: กรุณาไปที่ Supabase -> SQL Editor แล้วรัน SQL เพิ่ม Policy แบบ FOR DELETE TO anon บน storage.objects สำหรับ bucket "${bucketName}" (ดูโค้ดใน README.md)`
-    };
-  }
-
-  if (msg.includes("bucket not found") || status === "404") {
-    return {
-      message: `ไม่พบ Storage Bucket ชื่อ "${bucketName}" ในโปรเจกต์ Supabase`,
-      hint: `คำแนะนำ: กรุณาไปที่ Supabase -> Storage -> กด New bucket ตั้งชื่อ "${bucketName}" และติ๊กเปิด "Public bucket" (หรือแก้ชื่อ bucketName ใน supabase-config.js ให้ตรงกัน)`
-    };
-  }
-
-  if (
-    msg.includes("row-level security") ||
-    msg.includes("unauthorized") ||
-    msg.includes("permission") ||
-    status === "403" ||
-    status === "401"
-  ) {
-    return {
-      message: `ไม่มีสิทธิ์เข้าถึง Supabase Storage ระหว่าง${actionLabel} (${status || "RLS Policy"})`,
-      hint: `คำแนะนำ: กรุณาตรวจสอบค่า supabaseAnonKey ในไฟล์ supabase-config.js และตรวจสอบว่าได้สร้าง RLS Policies (INSERT, SELECT, DELETE สำหรับ anon) บน storage.objects ใน Supabase SQL Editor แล้ว (ดูโค้ดใน README.md)`
-    };
-  }
-
-  if (msg.includes("invalidkey") || msg.includes("invalid key")) {
-    return {
-      message: "ชื่อโฟลเดอร์หรือชื่อไฟล์มีอักขระที่ Supabase ไม่รองรับ (InvalidKey)",
-      hint: "กรุณาใช้ตัวอักษรภาษาอังกฤษ ตัวเลข หรือเครื่องหมาย - _ ในช่อง Job ID"
-    };
-  }
-
-  if (msg.includes("failed to fetch") || msg.includes("network")) {
-    return {
-      message: `เชื่อมต่อ Supabase ไม่สำเร็จระหว่าง${actionLabel}`,
-      hint: "กรุณาตรวจสอบอินเทอร์เน็ต และตรวจสอบว่า supabaseUrl ใน supabase-config.js ถูกต้อง รวมถึงโปรเจกต์ Supabase ไม่ได้อยู่ในสถานะ Paused"
-    };
-  }
-
-  return {
-    message: `เกิดข้อผิดพลาดระหว่าง${actionLabel}: ${rawMsg || "ไม่ทราบสาเหตุ"}`,
-    hint: status ? `รหัสสถานะ: ${status}` : "ตรวจสอบการตั้งค่าใน supabase-config.js และ Storage Policies"
-  };
 }
 
 function setUploadingUi(isUploading) {
@@ -614,7 +516,7 @@ async function startUpload(uploadItem) {
       return;
     }
 
-    const { message, hint } = getSupabaseErrorDetails(error, "อัปโหลดรูปภาพ");
+    const { message, hint } = getSupabaseErrorDetails(error, "อัปโหลดรูปภาพ", bucketName);
     showStatus("error", message, hint);
   }
 }
@@ -845,7 +747,7 @@ async function loadGallery() {
     }
     galleryCount.textContent = "โหลดข้อมูลไม่สำเร็จ";
     renderGalleryMessage("ไม่สามารถโหลดรูปภาพในโฟลเดอร์นี้ได้", "ตรวจสอบการแจ้งเตือนด้านบน");
-    const { message, hint } = getSupabaseErrorDetails(error, "โหลดรายการรูปภาพ");
+    const { message, hint } = getSupabaseErrorDetails(error, "โหลดรายการรูปภาพ", bucketName);
     showStatus("error", message, hint);
   } finally {
     if (requestId === galleryRequestSeq) {
@@ -902,7 +804,7 @@ async function executeDelete() {
     await loadGallery();
   } catch (error) {
     closeDeleteDialog();
-    const { message, hint } = getSupabaseErrorDetails(error, "ลบรูปภาพ");
+    const { message, hint } = getSupabaseErrorDetails(error, "ลบรูปภาพ", bucketName);
     showStatus("error", message, hint);
   } finally {
     confirmDeleteBtn.disabled = false;
@@ -931,15 +833,7 @@ function initApp() {
   } else {
     try {
       bucketName = supabaseConfig.bucketName.trim();
-      supabase = createClient(
-        supabaseConfig.supabaseUrl.trim(),
-        supabaseConfig.supabaseAnonKey.trim(),
-        {
-          global: {
-            fetch: uploadProgressFetch
-          }
-        }
-      );
+      supabase = createStorageClient(supabaseConfig, uploadProgressFetch);
       isConfigured = true;
       configWarningBanner.hidden = true;
     } catch (error) {
@@ -1002,6 +896,26 @@ function initApp() {
   });
 
   closeStatusBtn.addEventListener("click", hideStatus);
+
+  copyCustomerLinkBtn.addEventListener("click", async () => {
+    const jobId = getSelectedJobId();
+    if (!jobId) {
+      showStatus("error", "กรุณากรอกรหัสงานซ่อม (Job ID) ก่อนคัดลอกลิงก์");
+      jobIdInput.focus();
+      return;
+    }
+    const shareUrl = getCustomerViewUrl(jobId);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        showStatus("success", `คัดลอกลิงก์หน้าแสดงรูปสำหรับงาน ${jobId} แล้ว`, shareUrl);
+      } else {
+        window.prompt("คัดลอกลิงก์นี้ส่งให้ลูกค้า:", shareUrl);
+      }
+    } catch {
+      window.prompt("คัดลอกลิงก์นี้ส่งให้ลูกค้า:", shareUrl);
+    }
+  });
 
   cancelDeleteBtn.addEventListener("click", closeDeleteDialog);
   confirmDeleteBtn.addEventListener("click", executeDelete);

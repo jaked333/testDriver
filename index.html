@@ -16,7 +16,12 @@
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <div class="header-badge">ทดสอบ Supabase Storage (ฟรี ไม่ต้องผูกบัตร)</div>
+      <div class="header-top-row">
+        <div class="header-badge">ทดสอบ Supabase Storage (ฟรี ไม่ต้องผูกบัตร)</div>
+        <a id="headerViewerLink" href="./view.html?job=JOB-2569-001" class="header-nav-link">
+          หน้าสำหรับลูกค้า →
+        </a>
+      </div>
       <h1>ถ่ายและอัปโหลดรูปงานซ่อมรถ</h1>
       <p class="header-subtitle">
         ย่อขนาดภาพอัตโนมัติบนเบราว์เซอร์ (สูงสุด 1280px) และจัดเก็บแยกตามโฟลเดอร์งานซ่อม
@@ -97,6 +102,21 @@
         <div class="path-box" aria-live="polite">
           <span class="path-label">โฟลเดอร์ปลายทาง:</span>
           <code id="activeFolderPath" class="path-value">jobs/JOB-2569-001/00_claim</code>
+        </div>
+
+        <div class="share-bar">
+          <a
+            id="openCustomerViewLink"
+            href="./view.html?job=JOB-2569-001"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary"
+          >
+            เปิดหน้าแสดงรูป (สำหรับลูกค้า)
+          </a>
+          <button id="copyCustomerLinkBtn" type="button" class="btn btn-ghost">
+            คัดลอกลิงก์ให้ลูกค้า
+          </button>
         </div>
 
         <div class="capture-area">

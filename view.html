@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1e40af" />
+  <title>ติดตามภาพงานซ่อมรถ | สำหรับลูกค้า</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-top-row">
+        <div class="header-badge">รายงานภาพงานซ่อมรถ</div>
+        <a href="./index.html" class="header-nav-link">หน้าอัปโหลด</a>
+      </div>
+      <h1>ความคืบหน้าและภาพงานซ่อม</h1>
+      <p class="header-subtitle">
+        ตรวจสอบรูปภาพการซ่อมแยกตามขั้นตอน แตะที่รูปภาพเพื่อขยายดูขนาดเต็มจอ
+      </p>
+    </header>
+
+    <main class="main-content">
+      <!-- แจ้งเตือนหากยังไม่ได้ตั้งค่า -->
+      <section id="configWarningBanner" class="banner banner-warning" role="alert" hidden>
+        <div class="banner-icon" aria-hidden="true">⚠️</div>
+        <div class="banner-body">
+          <h2>ยังไม่ได้ตั้งค่า Supabase Config</h2>
+          <p>
+            กรุณาตรวจสอบไฟล์ <code>supabase-config.js</code> ก่อนใช้งานหน้าแสดงผลรูปภาพ
+          </p>
+        </div>
+      </section>
+
+      <!-- แถบสถานะ / ข้อผิดพลาด -->
+      <section id="statusBanner" class="banner banner-error" role="status" aria-live="polite" hidden>
+        <div class="banner-icon" aria-hidden="true">❌</div>
+        <div class="banner-body">
+          <p id="statusMessage" class="status-text"></p>
+          <p id="statusHint" class="status-hint" hidden></p>
+        </div>
+      </section>
+
+      <!-- ค้นหารหัสงานซ่อม -->
+      <section class="card" aria-labelledby="lookupTitle">
+        <div class="card-header">
+          <h2 id="lookupTitle">ค้นหางานซ่อม</h2>
+        </div>
+
+        <form id="lookupForm" class="lookup-form">
+          <div class="form-field lookup-input-wrap">
+            <label for="viewJobIdInput">รหัสงานซ่อม (Job ID)</label>
+            <input
+              id="viewJobIdInput"
+              type="text"
+              value="JOB-2569-001"
+              placeholder="เช่น JOB-2569-001"
+              autocomplete="off"
+              autocapitalize="characters"
+            />
+            <span id="viewJobIdHint" class="field-hint" hidden>
+              รองรับเฉพาะตัวอักษรภาษาอังกฤษ ตัวเลข และ - _
+            </span>
+          </div>
+          <div class="lookup-actions">
+            <button id="loadJobBtn" type="submit" class="btn btn-primary">
+              ดูรูปงานซ่อม
+            </button>
+          </div>
+        </form>
+
+        <div class="viewer-summary" aria-live="polite">
+          <span>รหัสงาน: <strong id="activeJobBadge">JOB-2569-001</strong></span>
+          <span id="totalPhotoCount" class="viewer-total-badge">กำลังโหลด...</span>
+        </div>
+
+        <!-- แถบตัวกรองตามขั้นตอน -->
+        <div id="stepFilterBar" class="step-filter-bar" role="tablist" aria-label="กรองตามขั้นตอนการซ่อม"></div>
+      </section>
+
+      <!-- พื้นที่แสดงรูปภาพแยกตามขั้นตอน -->
+      <div id="sectionsContainer" class="sections-stack" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <!-- Lightbox ขยายรูปภาพเต็มจอ -->
+  <dialog id="lightboxDialog" class="lightbox-dialog" aria-labelledby="lightboxCaption">
+    <div class="lightbox-shell">
+      <div class="lightbox-topbar">
+        <div class="lightbox-title-group">
+          <span id="lightboxStepBadge" class="lightbox-step-badge">-</span>
+          <span id="lightboxCounter" class="lightbox-counter">1 / 1</span>
+        </div>
+        <button id="lightboxCloseBtn" type="button" class="lightbox-icon-btn" aria-label="ปิดหน้าต่างดูรูป">
+          ✕
+        </button>
+      </div>
+
+      <div id="lightboxStage" class="lightbox-stage">
+        <button
+          id="lightboxPrevBtn"
+          type="button"
+          class="lightbox-nav lightbox-prev"
+          aria-label="รูปก่อนหน้า"
+        >
+          ‹
+        </button>
+        <img id="lightboxImg" alt="ภาพขยายงานซ่อม" />
+        <button
+          id="lightboxNextBtn"
+          type="button"
+          class="lightbox-nav lightbox-next"
+          aria-label="รูปถัดไป"
+        >
+          ›
+        </button>
+      </div>
+
+      <div class="lightbox-bottombar">
+        <div class="lightbox-meta">
+          <p id="lightboxCaption" class="lightbox-caption">-</p>
+          <p id="lightboxSubmeta" class="lightbox-submeta">-</p>
+        </div>
+        <a
+          id="lightboxOpenRaw"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn btn-secondary"
+        >
+          เปิดรูปเต็ม / ดาวน์โหลด
+        </a>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./view.js"></script>
+</body>
+</html>
