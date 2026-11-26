@@ -24,8 +24,10 @@ const stepSelect = document.getElementById("stepSelect");
 const activeFolderPath = document.getElementById("activeFolderPath");
 const openCustomerViewLink = document.getElementById("openCustomerViewLink");
 const copyCustomerLinkBtn = document.getElementById("copyCustomerLinkBtn");
-const photoInput = document.getElementById("photoInput");
-const captureLabel = document.getElementById("captureLabel");
+const cameraInput = document.getElementById("cameraInput");
+const cameraLabel = document.getElementById("cameraLabel");
+const galleryInput = document.getElementById("galleryInput");
+const galleryLabel = document.getElementById("galleryLabel");
 const autoUploadToggle = document.getElementById("autoUploadToggle");
 
 const previewCard = document.getElementById("previewCard");
@@ -289,8 +291,10 @@ function hideStatus() {
 }
 
 function setUploadingUi(isUploading) {
-  photoInput.disabled = isUploading;
-  captureLabel.classList.toggle("is-disabled", isUploading);
+  cameraInput.disabled = isUploading;
+  galleryInput.disabled = isUploading;
+  cameraLabel.classList.toggle("is-disabled", isUploading);
+  galleryLabel.classList.toggle("is-disabled", isUploading);
   uploadNowBtn.disabled = isUploading;
   clearPreviewBtn.disabled = isUploading;
   jobIdInput.disabled = isUploading;
@@ -525,8 +529,9 @@ async function startUpload(uploadItem) {
  * จัดการเมื่อผู้ใช้ถ่ายรูปหรือเลือกรูปภาพจากอุปกรณ์
  */
 async function handlePhotoSelected(event) {
-  const file = event.target.files?.[0];
-  photoInput.value = "";
+  const inputEl = event.currentTarget;
+  const file = inputEl.files?.[0];
+  inputEl.value = "";
 
   if (!file) {
     return;
@@ -876,7 +881,8 @@ function initApp() {
     loadGallery();
   });
 
-  photoInput.addEventListener("change", handlePhotoSelected);
+  cameraInput.addEventListener("change", handlePhotoSelected);
+  galleryInput.addEventListener("change", handlePhotoSelected);
 
   uploadNowBtn.addEventListener("click", () => {
     if (pendingUpload) {
